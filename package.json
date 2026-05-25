@@ -1,0 +1,44 @@
+{
+  "name": "opencode-github-release",
+  "version": "0.1.0",
+  "description": "OpenCode plugin to create git tags and publish GitHub releases with semantic versioning.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run build && npm pack --dry-run",
+    "prepublishOnly": "npm run check"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "release",
+    "github"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.14.41"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
