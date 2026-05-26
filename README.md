@@ -20,7 +20,7 @@ Restart OpenCode. The plugin loads automatically.
 
 ## Usage
 
-Ask OpenCode to create a release. The plugin provides a `create_release` tool with these modes:
+Ask OpenCode to create a release. The plugin provides `create_release` and `suggest_bump` tools. When you give a specific version or bump, `create_release` is called directly. When you don't, `suggest_bump` analyzes your commits first and asks for confirmation. Modes:
 
 **Auto-bump from latest tag:**
 ```
@@ -37,6 +37,36 @@ Release version 2.0.0
 **With release notes:**
 ```
 Create a patch release with notes "Fixed login bug"
+```
+
+**Auto-suggest from git history:**
+```
+Create a release
+```
+
+## How it works
+
+When you request a release, the plugin fetches the latest git tag from the repository and computes the next version from it. If you specify a bump (`patch`/`minor`/`major`) or an explicit version, it creates the tag and release immediately. If you don't specify either (e.g., just "create a release"), the plugin instead runs `suggest_bump` — it analyzes commits since the latest tag using conventional commit conventions: `fix` → patch, `feat` → minor, `BREAKING CHANGE` → major — and presents the suggestion for your confirmation before proceeding.
+
+If you don't provide release notes, the plugin automatically generates them from the commit history via `gh release create --generate-notes`.
+
+`create_release` expects conventional commit messages (`feat:`, `fix:`, `BREAKING CHANGE:`) for accurate auto-suggestion. Commits that follow this convention are classified as:
+
+- `fix:` → patch bump
+- `feat:` → minor bump
+- `BREAKING CHANGE:` or `feat!:` / `fix!:` → major bump
+
+Example output when running `suggest_bump`:
+
+```
+Latest tag: v0.1.0
+Commits: 3
+
+  [fix] a1b2c3d Fix login timeout
+  [feat] e4f5g6h Add user dashboard
+  [BREAKING] i7j8k9l Redesign auth API
+
+Suggested bump: major -> v1.0.0
 ```
 
 ## Prerequisites
