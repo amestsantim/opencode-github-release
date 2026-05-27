@@ -36,13 +36,12 @@ const plugin: Plugin = async ({ $ }) => {
           + "before calling create_release.",
         args: {},
         async execute(_args, _context) {
-          await $`git fetch --tags --force 2>/dev/null || true`;
+          await $`git fetch --tags --force 2>/dev/null || true`.quiet();
 
-          const tagResult = await $`git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"`;
-          const latestTag = tagResult.stdout.toString().trim();
+          const tagResult = await $`git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"`.text();
+          const latestTag = tagResult.trim();
 
-          const logResult = await $`git log ${latestTag}..HEAD --oneline 2>/dev/null || true`;
-          const logText = logResult.stdout.toString().trim();
+          const logText = await $`git log ${latestTag}..HEAD --oneline 2>/dev/null || true`.text();
 
           if (!logText) {
             return `No new commits since ${latestTag}. No release needed.`;
@@ -101,23 +100,23 @@ const plugin: Plugin = async ({ $ }) => {
             throw new Error("Provide either `bump` (patch/minor/major) or an explicit `version` string");
           }
 
-          await $`git fetch --tags --force 2>/dev/null || true`;
+          await $`git fetch --tags --force 2>/dev/null || true`.quiet();
 
-          const result = await $`git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"`;
-          const latestTag = result.stdout.toString().trim();
+          const tagResult = await $`git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"`.text();
+          const latestTag = tagResult.trim();
 
           const newTag = version
             ? (version.startsWith("v") ? version : `v${version}`)
             : bumpVersion(latestTag, bump!);
 
           const message = notes || `Release ${newTag}`;
-          await $`git tag -a ${newTag} -m ${message}`;
-          await $`git push origin ${newTag}`;
+          await $`git tag -a ${newTag} -m ${message}`.quiet();
+          await $`git push origin ${newTag}`.quiet();
 
           if (notes) {
-            await $`gh release create ${newTag} --title ${newTag} --notes ${notes}`;
+            await $`gh release create ${newTag} --title ${newTag} --notes ${notes}`.quiet();
           } else {
-            await $`gh release create ${newTag} --title ${newTag} --generate-notes`;
+            await $`gh release create ${newTag} --title ${newTag} --generate-notes`.quiet();
           }
 
           return `Created and published ${newTag} (bumped from ${latestTag})`;
