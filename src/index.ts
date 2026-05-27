@@ -88,16 +88,24 @@ const plugin: Plugin = async ({ $ }) => {
           bump: tool.schema.enum(["patch", "minor", "major"]).optional(),
           version: tool.schema.string().optional(),
           notes: tool.schema.string().optional(),
+          force: tool.schema.boolean().optional(),
         },
         async execute(args, _context) {
-          const { bump, version, notes } = args as {
+          const { bump, version, notes, force } = args as {
             bump?: "patch" | "minor" | "major";
             version?: string;
             notes?: string;
+            force?: boolean;
           };
 
           if (!bump && !version) {
             throw new Error("Provide either `bump` (patch/minor/major) or an explicit `version` string");
+          }
+
+          const status = (await $`git status --porcelain`.text()).trim();
+          if (status && !force) {
+            const count = status.split("\n").length;
+            return `${count} uncommitted file(s) detected. Call create_release with force: true to proceed anyway, or commit/stash first.`;
           }
 
           await $`git fetch --tags --force 2>/dev/null || true`.quiet();
@@ -109,6 +117,26 @@ const plugin: Plugin = async ({ $ }) => {
             ? (version.startsWith("v") ? version : `v${version}`)
             : bumpVersion(latestTag, bump!);
 
+          const branch = (await $`git rev-parse --abbrev-ref HEAD`.text()).trim();
+          let unpushedInfo = "";
+          if (branch !== "HEAD") {
+            const unpushed = (await $`git log origin/${branch}..HEAD --oneline 2>/dev/null || true`.text()).trim();
+            if (unpushed) {
+              unpushedInfo = `${unpushed.split("\n").length} unpushed commit(s) will be included in this release.`;
+            }
+          }
+
+          const hasPkg = (await $`test -f package.json && echo "yes" || echo "no"`.text()).trim() === "yes";
+          if (hasPkg) {
+            const bareVersion = newTag.replace(/^v/, "");
+            await $`npm version ${bareVersion} --no-git-tag-version`.quiet();
+            await $`git add package.json package-lock.json 2>/dev/null || true`.quiet();
+            await $`git commit -m ${`chore(release): bump version to ${newTag}`}`.quiet();
+            if (branch !== "HEAD") {
+              await $`git push origin ${branch}`.quiet();
+            }
+          }
+
           const message = notes || `Release ${newTag}`;
           await $`git tag -a ${newTag} -m ${message}`.quiet();
           await $`git push origin ${newTag}`.quiet();
@@ -119,7 +147,9 @@ const plugin: Plugin = async ({ $ }) => {
             await $`gh release create ${newTag} --title ${newTag} --generate-notes`.quiet();
           }
 
-          return `Created and published ${newTag} (bumped from ${latestTag})`;
+          let result = `Created and published ${newTag} (bumped from ${latestTag})`;
+          if (unpushedInfo) result += `\n${unpushedInfo}`;
+          return result;
         },
       }),
     },
