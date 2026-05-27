@@ -44,13 +44,25 @@ Create a patch release with notes "Fixed login bug"
 Create a release
 ```
 
+**Suggest a bump (without releasing):**
+```
+What version should I use?
+```
+
+**Override dirty tree check:**
+```
+Create a major release with force: true
+```
+
 ## How it works
 
 When you request a release, the plugin fetches the latest git tag from the repository and computes the next version from it. If you specify a bump (`patch`/`minor`/`major`) or an explicit version, it creates the tag and release immediately. If you don't specify either (e.g., just "create a release"), the plugin instead runs `suggest_bump` — it analyzes commits since the latest tag using conventional commit conventions: `fix` → patch, `feat` → minor, `BREAKING CHANGE` → major — and presents the suggestion for your confirmation before proceeding.
 
 If you don't provide release notes, the plugin automatically generates them from the commit history via `gh release create --generate-notes`.
 
-`create_release` expects conventional commit messages (`feat:`, `fix:`, `BREAKING CHANGE:`) for accurate auto-suggestion. Commits that follow this convention are classified as:
+`create_release` checks for uncommitted changes before proceeding. If the working tree is dirty, it returns a warning and asks you to commit, stash, or pass `force: true`.
+
+It expects conventional commit messages (`feat:`, `fix:`, `BREAKING CHANGE:`) for accurate auto-suggestion. Commits that follow this convention are classified as:
 
 - `fix:` → patch bump
 - `feat:` → minor bump
@@ -68,6 +80,8 @@ Commits: 3
 
 Suggested bump: major -> v1.0.0
 ```
+
+You can invoke `suggest_bump` directly at any time ("Suggest a bump") — it analyzes commits since the latest tag and recommends a bump without creating anything.
 
 ## Prerequisites
 
