@@ -44,7 +44,10 @@ const plugin: Plugin = async ({ $ }) => {
           const logText = await $`git log ${latestTag}..HEAD --oneline 2>/dev/null || true`.text();
 
           if (!logText) {
-            return `No new commits since ${latestTag}. No release needed.`;
+            return {
+              title: "No new commits",
+              output: `No new commits since ${latestTag}. No release needed.`,
+            };
           }
 
           const lines = logText.split("\n");
@@ -66,14 +69,17 @@ const plugin: Plugin = async ({ $ }) => {
             return `  ${tag} ${e.hash} ${e.subject}`;
           }).join("\n");
 
-          return [
-            `Latest tag: ${latestTag}`,
-            `Commits: ${entries.length}`,
-            "",
-            output,
-            "",
-            `Suggested bump: ${suggestedBump} -> ${bumpVersion(latestTag, suggestedBump)}`,
-          ].join("\n");
+          return {
+            title: "Bump suggestion",
+            output: [
+              `Latest tag: ${latestTag}`,
+              `Commits: ${entries.length}`,
+              "",
+              output,
+              "",
+              `Suggested bump: ${suggestedBump} -> ${bumpVersion(latestTag, suggestedBump)}`,
+            ].join("\n"),
+          };
         },
       }),
 
@@ -105,7 +111,10 @@ const plugin: Plugin = async ({ $ }) => {
           const status = (await $`git status --porcelain`.text()).trim();
           if (status && !force) {
             const count = status.split("\n").length;
-            return `${count} uncommitted file(s) detected. Call create_release with force: true to proceed anyway, or commit/stash first.`;
+            return {
+              title: "Uncommitted files",
+              output: `${count} uncommitted file(s) detected. Call create_release with force: true to proceed anyway, or commit/stash first.`,
+            };
           }
 
           await $`git fetch --tags --force 2>/dev/null || true`.quiet();
@@ -149,7 +158,7 @@ const plugin: Plugin = async ({ $ }) => {
 
           let result = `Created and published ${newTag} (bumped from ${latestTag})`;
           if (unpushedInfo) result += `\n${unpushedInfo}`;
-          return result;
+          return { title: newTag, output: result };
         },
       }),
     },
