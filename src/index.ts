@@ -127,11 +127,16 @@ const plugin: Plugin = async ({ $ }) => {
             : bumpVersion(latestTag, bump!);
 
           const branch = (await $`git rev-parse --abbrev-ref HEAD`.text()).trim();
-          let unpushedInfo = "";
+
+          type CommitEntry = { hash: string; subject: string };
+          let unpushedBefore: CommitEntry[] = [];
           if (branch !== "HEAD") {
-            const unpushed = (await $`git log origin/${branch}..HEAD --oneline 2>/dev/null || true`.text()).trim();
-            if (unpushed) {
-              unpushedInfo = `${unpushed.split("\n").length} unpushed commit(s) will be included in this release.`;
+            const before = (await $`git log origin/${branch}..HEAD --oneline 2>/dev/null || true`.text()).trim();
+            if (before) {
+              unpushedBefore = before.split("\n").map(line => {
+                const hash = line.split(/\s+/)[0];
+                return { hash, subject: line.slice(hash.length).trim() };
+              });
             }
           }
 
@@ -141,9 +146,10 @@ const plugin: Plugin = async ({ $ }) => {
             await $`npm version ${bareVersion} --no-git-tag-version`.quiet();
             await $`git add package.json package-lock.json 2>/dev/null || true`.quiet();
             await $`git commit -m ${`chore(release): bump version to ${newTag}`}`.quiet();
-            if (branch !== "HEAD") {
-              await $`git push origin ${branch}`.quiet();
-            }
+          }
+
+          if (branch !== "HEAD") {
+            await $`git push origin ${branch}`.quiet();
           }
 
           const message = notes || `Release ${newTag}`;
@@ -157,7 +163,24 @@ const plugin: Plugin = async ({ $ }) => {
           }
 
           let result = `Created and published ${newTag} (bumped from ${latestTag})`;
-          if (unpushedInfo) result += `\n${unpushedInfo}`;
+          if (branch !== "HEAD" && unpushedBefore.length > 0) {
+            const remaining = (await $`git log origin/${branch}..HEAD --oneline 2>/dev/null || true`.text()).trim();
+            const remainingCount = remaining ? remaining.split("\n").length : 0;
+            const pushedCount = unpushedBefore.length - remainingCount;
+
+            if (pushedCount > 0) {
+              const plural = pushedCount === 1 ? "" : "s";
+              result += `\nPushed ${pushedCount} commit${plural} to ${branch}:`;
+              for (let i = 0; i < pushedCount; i++) {
+                result += `\n  ${unpushedBefore[i].hash} ${unpushedBefore[i].subject}`;
+              }
+            }
+            if (remainingCount > 0) {
+              const plural = remainingCount === 1 ? "" : "s";
+              const verb = remainingCount === 1 ? "is" : "are";
+              result += `\nNote: ${remainingCount} commit${plural} in this release ${verb} not yet pushed to origin/${branch}.`;
+            }
+          }
           return { title: newTag, output: result };
         },
       }),
