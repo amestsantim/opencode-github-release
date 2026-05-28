@@ -83,6 +83,10 @@ Suggested bump: major -> v1.0.0
 
 You can invoke `suggest_bump` directly at any time ("Suggest a bump") — it analyzes commits since the latest tag and recommends a bump without creating anything.
 
+The `suggest_bump` tool works exceptionally well if your commit messages follow the [conventional commits specification](https://www.conventionalcommits.org/en/v1.0.0/). 
+
+There are commit skills such as (https://github.com/PedroHBO/opencode-config-skills/tree/main/skills/git-commit) that makes it all automatic and seamless.
+
 ## Prerequisites
 
 - [Git](https://git-scm.com/)
