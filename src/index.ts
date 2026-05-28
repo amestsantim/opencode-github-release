@@ -1,6 +1,7 @@
 import { type Plugin, tool } from "@opencode-ai/plugin";
 
 function bumpVersion(current: string, bump: "patch" | "minor" | "major"): string {
+  const prefix = current.startsWith("v") ? "v" : "";
   const cleaned = current.replace(/^v/, "");
   const match = cleaned.match(/^(\d+)\.(\d+)\.(\d+)/);
   if (!match) throw new Error(`Cannot parse semver from "${current}"`);
@@ -10,7 +11,7 @@ function bumpVersion(current: string, bump: "patch" | "minor" | "major"): string
   if (bump === "major") { major++; minor = 0; patch = 0; }
   if (bump === "minor") { minor++; patch = 0; }
   if (bump === "patch") { patch++; }
-  return `v${major}.${minor}.${patch}`;
+  return `${prefix}${major}.${minor}.${patch}`;
 }
 
 function classifyCommit(subject: string): { type: "feat" | "fix" | "other"; breaking: boolean } {
@@ -122,9 +123,31 @@ const plugin: Plugin = async ({ $ }) => {
           const tagResult = await $`git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"`.text();
           const latestTag = tagResult.trim();
 
-          const newTag = version
-            ? (version.startsWith("v") ? version : `v${version}`)
-            : bumpVersion(latestTag, bump!);
+          const repoUsesV = latestTag.startsWith("v");
+          const hasExistingTags = parseInt((await $`git tag -l 2>/dev/null | wc -l`.text()).trim(), 10) > 0;
+
+          let newTag: string;
+          if (version) {
+            const versionHasV = version.startsWith("v");
+            if (hasExistingTags && versionHasV !== repoUsesV) {
+              const suggestion = versionHasV
+                ? version.replace(/^v/, "")
+                : `v${version}`;
+              return {
+                title: "Version prefix mismatch",
+                output: [
+                  `Existing releases use ${repoUsesV ? 'the "v" prefix' : 'no "v" prefix'} (e.g. "${latestTag}"),`,
+                  `but you provided "${version}" which ${versionHasV ? "has" : "does not have"} a "v" prefix.`,
+                  "",
+                  `Would you like to use "${suggestion}" instead?`,
+                  "If so, call create_release again with the corrected version.",
+                ].join("\n"),
+              };
+            }
+            newTag = version;
+          } else {
+            newTag = bumpVersion(latestTag, bump!);
+          }
 
           const branch = (await $`git rev-parse --abbrev-ref HEAD`.text()).trim();
 
