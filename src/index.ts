@@ -36,7 +36,8 @@ const plugin: Plugin = async ({ $ }) => {
           + "After receiving the suggestion, present it to the user and ask for confirmation "
           + "before calling create_release.",
         args: {},
-        async execute(_args, _context) {
+        async execute(_args, context) {
+          context.metadata({ title: "Fetching tags…" });
           await $`git fetch --tags --force 2>/dev/null || true`.quiet();
 
           const tagResult = await $`git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"`.text();
@@ -97,7 +98,7 @@ const plugin: Plugin = async ({ $ }) => {
           notes: tool.schema.string().optional(),
           force: tool.schema.boolean().optional(),
         },
-        async execute(args, _context) {
+        async execute(args, context) {
           const { bump, version, notes, force } = args as {
             bump?: "patch" | "minor" | "major";
             version?: string;
@@ -109,6 +110,7 @@ const plugin: Plugin = async ({ $ }) => {
             throw new Error("Provide either `bump` (patch/minor/major) or an explicit `version` string");
           }
 
+          context.metadata({ title: "Checking working tree…" });
           const status = (await $`git status --porcelain`.text()).trim();
           if (status && !force) {
             const count = status.split("\n").length;
@@ -118,6 +120,7 @@ const plugin: Plugin = async ({ $ }) => {
             };
           }
 
+          context.metadata({ title: "Fetching tags…" });
           await $`git fetch --tags --force 2>/dev/null || true`.quiet();
 
           const tagResult = await $`git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"`.text();
@@ -149,6 +152,7 @@ const plugin: Plugin = async ({ $ }) => {
             newTag = bumpVersion(latestTag, bump!);
           }
 
+          context.metadata({ title: `Bumping to ${newTag}…` });
           const branch = (await $`git rev-parse --abbrev-ref HEAD`.text()).trim();
 
           type CommitEntry = { hash: string; subject: string };
@@ -172,13 +176,16 @@ const plugin: Plugin = async ({ $ }) => {
           }
 
           if (branch !== "HEAD") {
+            context.metadata({ title: "Pushing commits…" });
             await $`git push origin ${branch}`.quiet();
           }
 
+          context.metadata({ title: "Tagging release…" });
           const message = notes || `Release ${newTag}`;
           await $`git tag -a ${newTag} -m ${message}`.quiet();
           await $`git push origin ${newTag}`.quiet();
 
+          context.metadata({ title: "Creating GitHub release…" });
           if (notes) {
             await $`gh release create ${newTag} --title ${newTag} --notes ${notes}`.quiet();
           } else {
