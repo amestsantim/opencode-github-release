@@ -8,7 +8,15 @@ An [OpenCode](https://opencode.ai) plugin that creates git tags and publishes Gi
 
 ## Installation
 
-Add to your `opencode.json`:
+For OpenCode V2, add to your `opencode.json`:
+
+```json
+{
+  "plugins": ["opencode-github-release"]
+}
+```
+
+For OpenCode V1 (1.18.29 or newer), use its V1 configuration key instead:
 
 ```json
 {
@@ -93,12 +101,14 @@ There are commit skills such as (https://github.com/PedroHBO/opencode-config-ski
 - [GitHub CLI](https://cli.github.com/) (`gh`) authenticated to your account
 - The current directory must be a git repository with a remote named `origin`
 
+Git commands run in the session's working directory. Release creation pushes commits and tags to `origin` and publishes through `gh`; verify the proposed version before proceeding.
+
 ## Development
 
 ```bash
 npm install
 npm run typecheck
-npm run build
+npm test
 npm pack --dry-run
 ```
 
