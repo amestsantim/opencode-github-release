@@ -43,10 +43,10 @@ function bumpVersion(current: string, bump: Bump): string {
   return `${prefix}${major}.${minor}.${patch}`;
 }
 
-function classifyCommit(subject: string): { type: "feat" | "fix" | "other"; breaking: boolean } {
+function classifyCommit(subject: string, body: string): { type: "feat" | "fix" | "other"; breaking: boolean } {
   const breaking =
-    /^BREAKING CHANGE:/im.test(subject) ||
-    /^\w+(\([^)]*\))?!:/m.test(subject);
+    /^\w+(\([^)]*\))?!:/.test(subject) ||
+    /^BREAKING(?: CHANGE|-CHANGE):[ \t]+\S/m.test(body);
   const match = subject.match(/^(\w+)(\([^)]*\))?(!)?\s*:/);
   const type = match?.[1]?.toLowerCase();
   if (type === "feat") return { type: "feat", breaking };
@@ -62,17 +62,19 @@ async function latestTag(run: Runner): Promise<string> {
 export async function suggestBump(run: Runner, progress: Progress): Promise<Result> {
   await progress("Fetching tags…");
   const tag = await latestTag(run);
-  const logText = await optional(run, "git", ["log", `${tag}..HEAD`, "--oneline"]);
+  const logText = await optional(run, "git", ["log", `${tag}..HEAD`, "-z", "--format=%h%x00%s%x00%b"]);
 
   if (!logText) {
     return { title: "No new commits", output: `No new commits since ${tag}. No release needed.` };
   }
 
-  const entries = logText.split("\n").map(line => {
-    const hash = line.split(/\s+/)[0];
-    const subject = line.slice(hash.length).trim();
-    return { hash, subject, ...classifyCommit(subject) };
-  });
+  const fields = logText.split("\0");
+  fields.pop(); // git log -z ends each record with a NUL byte
+  const entries = [];
+  for (let i = 0; i < fields.length; i += 3) {
+    const [hash, subject, body] = fields.slice(i, i + 3);
+    entries.push({ hash, subject, ...classifyCommit(subject, body) });
+  }
 
   let suggestedBump: Bump = "patch";
   for (const entry of entries) {

@@ -33,11 +33,27 @@ test("V1 and V2 expose the same named tools", async () => {
 test("suggestion classifies conventional commits without publishing", async () => {
   const { run, calls } = fakeRunner({
     "git describe --tags --abbrev=0": "v1.2.3",
-    "git log v1.2.3..HEAD --oneline": "aaa feat: a feature\nbbb fix: a fix",
+    "git log v1.2.3..HEAD -z --format=%h%x00%s%x00%b": "aaa\0feat: a feature\0\0bbb\0fix: a fix\0\0",
   });
   const result = await suggestBump(run, () => {});
   assert.match(result.output, /Suggested bump: minor -> v1\.3\.0/);
   assert.equal(calls.some(call => call.includes("push") || call.startsWith("gh ")), false);
+});
+
+test("suggestion recognizes both breaking footer spellings and exclamation marks", async () => {
+  const log = "aaa\0fix(api): change response\0Explain the change.\n\nBREAKING CHANGE: clients must adapt\n\0"
+    + "bbb\0refactor: change config\0BREAKING-CHANGE: old keys no longer work\n\0"
+    + "ccc\0feat(core)!: remove legacy API\0\0";
+  const { run } = fakeRunner({
+    "git describe --tags --abbrev=0": "v1.2.3",
+    "git log v1.2.3..HEAD -z --format=%h%x00%s%x00%b": log,
+  });
+  const result = await suggestBump(run, () => {});
+  assert.match(result.output, /Commits: 3/);
+  assert.match(result.output, /\[BREAKING\] aaa fix\(api\): change response/);
+  assert.match(result.output, /\[BREAKING\] bbb refactor: change config/);
+  assert.match(result.output, /\[BREAKING\] ccc feat\(core\)!: remove legacy API/);
+  assert.match(result.output, /Suggested bump: major -> v2\.0\.0/);
 });
 
 test("dirty tree and prefix mismatch stop before publishing", async () => {
@@ -95,4 +111,12 @@ test("both entrypoints analyze the tool session's repository", async t => {
     progress: async () => {},
   });
   assert.match(current.content, /Suggested bump: minor -> v1\.1\.0/);
+
+  await git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "fix: update API", "-m", "Details.\n\nBREAKING CHANGE: old clients must migrate", "--quiet");
+  const breaking = await tools.find(t => t.name === "suggest_bump").execute({}, {
+    sessionID: "test-session",
+    signal: new AbortController().signal,
+    progress: async () => {},
+  });
+  assert.match(breaking.content, /Suggested bump: major -> v2\.0\.0/);
 });
